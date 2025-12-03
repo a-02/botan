@@ -18,6 +18,7 @@ module Botan.Low.PubKey.Decrypt (
   , decryptDestroy
   , decryptOutputLength
   , decrypt
+  , decryptTrim
 
   ) where
 
@@ -68,6 +69,26 @@ decrypt ::
   -> ByteString       -- ^ __ciphertext__
   -> IO ByteString    -- ^ __plaintext__
 decrypt dec ctext =
+    withDecrypt dec $ \ decPtr ->
+    asBytesLen ctext $ \ ctextPtr ctextLen ->
+    alloca $ \szPtr -> do
+      sz <- decryptOutputLength dec (BS.length ctext)
+      poke szPtr (fromIntegral sz)
+      BSI.createUptoN sz $ \outPtr -> do
+        throwBotanIfNegative_ $
+          botan_pk_op_decrypt
+            decPtr
+            outPtr
+            szPtr
+            (ConstPtr ctextPtr)
+            ctextLen
+        fromIntegral <$> peek szPtr
+
+decryptTrim ::
+     Decrypt          -- ^ __op__
+  -> ByteString       -- ^ __ciphertext__
+  -> IO ByteString    -- ^ __plaintext__
+decryptTrim dec ctext =
     withDecrypt dec $ \ decPtr ->
     asBytesLen ctext $ \ ctextPtr ctextLen ->
     alloca $ \szPtr -> do

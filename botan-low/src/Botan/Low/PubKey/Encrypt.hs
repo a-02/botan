@@ -18,6 +18,7 @@ module Botan.Low.PubKey.Encrypt (
   , encryptDestroy
   , encryptOutputLength
   , encrypt
+  , encryptTrim
 
   ) where
 
@@ -70,6 +71,29 @@ encrypt ::
   -> ByteString       -- ^ __plaintext[]__
   -> IO ByteString    -- ^ __ciphertext[]__
 encrypt enc rng ptext =
+    withEncrypt enc $ \ encPtr ->
+    withRNG rng $ \ botanRNG ->
+    asBytesLen ptext $ \ ptextPtr ptextLen ->
+    alloca $ \szPtr -> do
+      sz <- encryptOutputLength enc (BS.length ptext)
+      poke szPtr (fromIntegral sz)
+      BSI.createUptoN sz $ \outPtr -> do
+        throwBotanIfNegative_ $
+          botan_pk_op_encrypt
+            encPtr
+            botanRNG
+            outPtr
+            szPtr
+            ptextPtr
+            ptextLen
+        fromIntegral <$> peek szPtr
+
+encryptTrim ::
+     Encrypt          -- ^ __op__
+  -> RNG              -- ^ __rng__
+  -> ByteString       -- ^ __plaintext[]__
+  -> IO ByteString    -- ^ __ciphertext[]__
+encryptTrim enc rng ptext =
     withEncrypt enc $ \ encPtr ->
     withRNG rng $ \ botanRNG ->
     asBytesLen ptext $ \ ptextPtr ptextLen ->
